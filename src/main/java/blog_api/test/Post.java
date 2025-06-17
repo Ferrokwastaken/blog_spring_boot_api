@@ -30,7 +30,7 @@ public class Post {
 
   // --- Constructors ---
   // JPA requires a basic constructor without arguments
-  public Post() {
+  protected Post() {
   }
 
   // Overloaded constructor for easier creation

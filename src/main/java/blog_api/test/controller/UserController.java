@@ -1,5 +1,6 @@
 package blog_api.test.controller;
 
+import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -7,6 +8,9 @@ import java.util.UUID;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.authentication.AuthenticationManager;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -15,14 +19,23 @@ import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.security.core.Authentication;
 
 import blog_api.test.User;
+import blog_api.test.security.jwt.JwtUtil;
 import blog_api.test.service.UserService;
 
 @RestController
 @RequestMapping("/api/users")
 public class UserController {
+  @Autowired
   private final UserService userService;
+
+  @Autowired
+  private AuthenticationManager authenticationManager;
+
+  @Autowired
+  private JwtUtil jwtUtil;
 
   @Autowired
   public UserController(UserService userService) {
@@ -42,14 +55,20 @@ public class UserController {
 
   // POST /api/users/login - Authenticate a user (Login)
   @PostMapping("/login")
-  public ResponseEntity<User> loginUser(@RequestBody User loginRequest) {
-    Optional<User> authenticatedUser = userService.authenticatedUser(loginRequest.getUsername(),
-        loginRequest.getPassword());
+  public ResponseEntity<?> loginUser(@RequestBody User loginRequest) {
+    try {
+      Authentication authentication = authenticationManager.authenticate(
+          new UsernamePasswordAuthenticationToken(loginRequest.getUsername(), loginRequest.getPassword()));
 
-    if (authenticatedUser.isPresent()) {
-      return new ResponseEntity<>(authenticatedUser.get(), HttpStatus.OK);
-    } else {
-      return new ResponseEntity<>(HttpStatus.UNAUTHORIZED);
+      final UserDetails userDetails = (UserDetails) authentication.getPrincipal();
+      final String jwt = jwtUtil.generateToken(userDetails.getUsername());
+
+      return ResponseEntity.ok(Collections.singletonMap("jwt", jwt));
+    } catch (Exception e) {
+      // Catch authentication exceptions (e.g., BadCredentialsException,
+      // DisabledException)
+      System.err.println("Authentication failed for user " + loginRequest.getUsername() + ": " + e.getMessage());
+      return new ResponseEntity<>("Invalid username or password", HttpStatus.UNAUTHORIZED);
     }
   }
 
